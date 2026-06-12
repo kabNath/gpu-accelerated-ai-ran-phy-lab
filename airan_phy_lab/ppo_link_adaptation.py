@@ -5,13 +5,14 @@ try:
 except ImportError:
     HAS_TORCH=False
 from .link_adaptation import MCS_TABLE, synthetic_bler
+from .bler_table import make_bler_fn
 class LinkAdaptationEnv:
-    def __init__(self, mean_snr_db=10.0, episode_len=200, seed=0):
-        self.mean_snr_db=mean_snr_db; self.episode_len=episode_len; self.rng=np.random.default_rng(seed); self.t=0; self.last_ack=1.0; self.last_mcs=0.0
+    def __init__(self, mean_snr_db=10.0, episode_len=200, seed=0, bler_fn=None):
+        self.mean_snr_db=mean_snr_db; self.episode_len=episode_len; self.rng=np.random.default_rng(seed); self.t=0; self.last_ack=1.0; self.last_mcs=0.0; self.bler_fn=bler_fn or make_bler_fn()
     def reset(self): self.t=0; self.last_ack=1.0; self.last_mcs=0.0; return self._obs(self.mean_snr_db)
     def _obs(self,snr): return np.array([snr/30.0,self.last_ack,self.last_mcs/9.0],dtype=np.float32)
     def step(self,action):
-        snr=self.mean_snr_db+self.rng.normal(0,2.0); action=int(np.clip(action,0,len(MCS_TABLE)-1)); bler=synthetic_bler(snr,action)
+        snr=self.mean_snr_db+self.rng.normal(0,2.0); action=int(np.clip(action,0,len(MCS_TABLE)-1)); bler=self.bler_fn(snr,action)
         ack=self.rng.random()>bler; reward=MCS_TABLE[action]['rate'] if ack else 0.0
         self.last_ack=float(ack); self.last_mcs=float(action); self.t+=1
         return self._obs(snr), reward, self.t>=self.episode_len, {'snr':snr,'bler':bler,'ack':ack}

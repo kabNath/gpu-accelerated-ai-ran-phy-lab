@@ -61,7 +61,8 @@ def _build_model(num_bits_per_symbol: int, coderate: float, perfect_csi: bool,
                                     pilot_ofdm_symbol_indices=[2, 11])
             self._sm = StreamManagement(np.array([[1]]), 1)
             self._n = int(self._rg.num_data_symbols * num_bits_per_symbol)
-            self._k = int(self._n * coderate)
+            self._k = max(int(self._n * coderate), (self._n // 5) + 1)  # respect 5G LDPC r >= 1/5
+            self._k = min(self._k, 8448)  # 5G LDPC max info bits per codeword
             self._bps = num_bits_per_symbol
 
             self._binary_source = BinarySource()
@@ -86,9 +87,9 @@ def _build_model(num_bits_per_symbol: int, coderate: float, perfect_csi: bool,
             return self._k
 
         @tf.function(jit_compile=False)
-        def call(self, batch_size, snr_db):
+        def call(self, batch_size, ebno_db):
             # Index BLER by channel SNR (Es/No); constellation energy is unit-normalized.
-            no = tf.pow(10.0, -snr_db / 10.0)
+            no = tf.pow(10.0, -ebno_db / 10.0)
             b = self._binary_source([batch_size, 1, 1, self._k])
             c = self._encoder(b)
             x = self._mapper(c)
@@ -129,7 +130,7 @@ def run_bler_sweep(snr_dbs=None, mcs_table=MCS_TABLE, perfect_csi=False,
     curves = {}
     for row in mcs_table:
         bps = _MOD_TO_BPS[row["mod"]]
-        rate = float(row["rate"])
+        rate = float(min(max(row["rate"], 0.2), 0.9))  # clamp to 5G LDPC valid range [1/5, 8/9]
         model = _build_model(bps, rate, perfect_csi, tdl_model, delay_spread,
                              speed, carrier_frequency, fft_size, num_ofdm_symbols)
         # sim_ber treats the x-axis as a scalar passed to model(batch_size, x);

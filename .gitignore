@@ -9,3 +9,12 @@ results/*.qdrep
 results/*.sqlite
 results/*.nsys-rep
 results/*.ncu-rep
+
+# never commit virtualenvs / caches
+.venv/
+.venv-sionna/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+.pytest_cache/
