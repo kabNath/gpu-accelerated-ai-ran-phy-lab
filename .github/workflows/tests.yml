@@ -1,5 +1,6 @@
 name: tests
 on: [push, pull_request]
+
 jobs:
   cpu-tests:
     runs-on: ubuntu-latest
@@ -14,5 +15,17 @@ jobs:
           pip install -e .
       - name: Run tests
         run: pytest -v
-      - name: Run benchmark
+      - name: Run end-to-end
         run: python benchmarks/run_end_to_end.py
+
+  cuda-compile-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@v0.2.16
+        with:
+          cuda: "12.4.0"
+          method: network
+      - name: Compile-check CUDA (no GPU needed)
+        run: make -C csrc compile-check ARCH=sm_75

@@ -1,0 +1,5 @@
+# Sionna link-level simulation (Option A). Needs a CUDA GPU.
+# Pinned to the PHY 1.x API (sionna.phy.*) used by airan_phy_lab/sionna_link.py.
+sionna>=1.0,<2.0
+# tensorflow is pulled in by sionna; pin explicitly if you need a specific CUDA build:
+# tensorflow>=2.15
