@@ -1,6 +1,7 @@
 # OFDM PHY + AI-RAN Lab
 
 [![tests](https://github.com/kabNath/gpu-accelerated-ai-ran-phy-lab/actions/workflows/tests.yml/badge.svg)](https://github.com/kabNath/gpu-accelerated-ai-ran-phy-lab/actions/workflows/tests.yml)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 A compact, honest wireless-PHY research stack for AI-RAN / 6G work:
 
@@ -9,12 +10,19 @@ A compact, honest wireless-PHY research stack for AI-RAN / 6G work:
   correct against a CPU reference (~1e-4 relative error).
 - **A 5G link-level BLER simulator** (NVIDIA Sionna): OFDM + 5G LDPC over a
   3GPP TR38.901 TDL channel, swept over MCS × SNR.
-- **Link adaptation** (OLLA + a PPO agent) that consumes the **measured Sionna
-  BLER curves** instead of a hand-tuned analytic model.
+- **Link adaptation** (OLLA baseline + a PPO research scaffold) that consumes
+  the **measured Sionna BLER curves** instead of a hand-tuned analytic model.
 
 The goal isn't to replace a production 5G NR stack — it's to show end-to-end
 engineering judgment: real GPU kernels, a verifiable CPU ground truth, a
-standards-based link, and honest limitations.
+standards-based link, and honest limitations. Design rationale and a
+claim-by-claim verification guide are in
+[`docs/NVIDIA_REVIEW.md`](docs/NVIDIA_REVIEW.md); status and next steps in
+[`ROADMAP.md`](ROADMAP.md).
+
+> **Companion repo:** the GPU-kernel deep-dive (naive → shared-memory tiled →
+> cuBLAS, profiled with Nsight Compute) lives in
+> [cuda-phy-channel-estimation](https://github.com/kabNath/cuda-phy-channel-estimation).
 
 ---
 
@@ -23,10 +31,10 @@ standards-based link, and honest limitations.
 `H_mmse = R (R + σ²I)⁻¹ H_ls`, with `R` built from a power-delay profile.
 
 The pipeline never forms the Wiener matrix explicitly: it builds `R` with a
-**custom CUDA kernel**, solves the Hermitian system with **cuSolver** (`Cpotrf`/
-`Cpotrs`), and applies `R` with **cuBLAS** (`Cgemm`). Re-implementing a dense
-Cholesky by hand would be slower and less numerically robust than the vendor
-libraries — knowing *when not* to write a kernel is part of the point.
+**custom CUDA kernel**, solves the Hermitian system with **cuSolver**
+(`Cpotrf`/`Cpotrs`), and applies `R` with **cuBLAS** (`Cgemm`). Re-implementing
+a dense Cholesky by hand would be slower and less numerically robust than the
+vendor libraries — knowing *when not* to write a kernel is part of the point.
 
 ### Measured on RTX 4090 (sm_89, CUDA 12.8, driver 596.36)
 
@@ -36,11 +44,14 @@ libraries — knowing *when not* to write a kernel is part of the point.
 | 512  | 88.9 ms | 1.40 ms | **63.4×** | 1.5e-4 |
 | 1024 | 313 ms  | 2.35 ms | **133.6×** | 3.4e-4 |
 
-Standalone CUDA C++ (`csrc/mmse_est`): **2.16 ms/batch** at N=1024, B=4096
-(≈1900 OFDM symbols/ms). The speedup grows with N because the O(N³) solve
-dominates — exactly where the GPU pays off. Numbers are reproduced by
-`benchmarks/benchmark_cpu_gpu.py`; correctness is enforced in
-`tests/test_cuda_mmse.py` (GPU vs CPU and the compiled binary vs CPU).
+![MMSE CPU vs GPU speedup](results/figures/mmse_speedup_rtx4090.png)
+
+![GPU numerical accuracy vs CPU](results/figures/mmse_relative_error.png)
+
+The speedup grows with N because the O(N³) solve dominates — exactly where the
+GPU pays off. Numbers are reproduced by `benchmarks/benchmark_cpu_gpu.py`;
+correctness is enforced in `tests/test_cuda_mmse.py` (GPU vs CPU and the compiled
+binary vs CPU). Regenerate the figures with `python benchmarks/make_figures.py`.
 
 ```bash
 make -C csrc ARCH=sm_89                  # sm_80 A100, sm_75 T4
@@ -62,6 +73,8 @@ A SISO OFDM link built with **NVIDIA Sionna (PHY 1.x)**:
 `benchmarks/run_sionna_bler.py` sweeps the **block-error rate over MCS × SNR**
 with `sim_ber` and exports `results/sionna_bler_curves.json`.
 
+![Sionna 5G BLER curves](results/figures/sionna_bler_curves.png)
+
 ```bash
 pip install -r requirements-sionna.txt   # Sionna PHY 1.x + TensorFlow (GPU)
 python benchmarks/run_sionna_bler.py     # writes results/sionna_bler_curves.json
@@ -79,10 +92,16 @@ code blocks.
 
 `airan_phy_lab/bler_table.py` loads the swept curves and exposes
 `bler(snr_db, mcs)` — a drop-in for the old `synthetic_bler` — plus
-`best_mcs(snr_db, target_bler)`. The PPO environment and the OLLA controller use
-this table, so the agent learns against **measured 5G-link BLER**. If the curves
-file is absent, the table transparently falls back to the analytic model
+`best_mcs(snr_db, target_bler)`. The OLLA controller and the PPO scaffold use
+this table, so link adaptation runs against **measured 5G-link BLER**. If the
+curves file is absent, the table transparently falls back to the analytic model
 (`load_or_synthetic(...).source` reports `"sionna"` vs `"synthetic"`).
+
+> **Status:** OLLA is the working industrial baseline. A *reproducible*
+> PPO-vs-OLLA-vs-greedy comparison under delayed/noisy CQI (with throughput
+> plots) is the next roadmap item — see [`ROADMAP.md`](ROADMAP.md). It is staged
+> deliberately because a trustworthy RL result needs tuning on the real curves,
+> not a quick pass.
 
 ```bash
 python -c "from airan_phy_lab.bler_table import load_or_synthetic as l; print(l().source)"
@@ -101,9 +120,10 @@ airan_phy_lab/
   bler_table.py                                        # Sionna curves -> OLLA/PPO bridge
   link_adaptation.py, ppo_link_adaptation.py           # OLLA + PPO
 csrc/mmse_channel_est.cu                               # standalone CUDA C++ (cuSolver/cuBLAS)
-benchmarks/                                            # CPU-vs-GPU, Sionna sweep, PPO demo
+benchmarks/                                            # CPU-vs-GPU, Sionna sweep, figures
+results/                                               # measured benchmarks, BLER curves, figures
+docs/NVIDIA_REVIEW.md                                  # design choices + verification + limits
 tests/                                                 # CPU + GPU correctness (GPU self-skips)
-results/                                               # measured benchmarks + BLER curves
 .github/workflows/tests.yml                            # CI: CPU tests + CUDA compile-check
 ```
 
@@ -117,9 +137,9 @@ results/                                               # measured benchmarks + B
 
 ## Limitations
 
-SISO link, single LDPC codeword (no code-block segmentation), TDL (not full
+SISO link, single LDPC codeword (no code-block segmentation), TDL (not
 ray-traced) channel, and a simplified MCS table. These are the natural next
-extensions, not hidden assumptions.
+extensions, not hidden assumptions — see [`ROADMAP.md`](ROADMAP.md).
 
 ## License
 
