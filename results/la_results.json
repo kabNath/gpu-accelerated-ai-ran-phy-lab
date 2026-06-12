@@ -1,0 +1,31 @@
+{
+  "config": {
+    "cqi_delay_slots": 3,
+    "cqi_noise_db": 2.0,
+    "bler_target": 0.1,
+    "eval_slots": 20000,
+    "n_mcs": 10
+  },
+  "policies": {
+    "random": {
+      "tput": 0.7485539999999198,
+      "bler": 0.38805,
+      "mean_mcs": 4.4499
+    },
+    "greedy": {
+      "tput": 1.555418999999863,
+      "bler": 0.31365,
+      "mean_mcs": 5.14425
+    },
+    "olla": {
+      "tput": 1.5198434999998465,
+      "bler": 0.27675,
+      "mean_mcs": 4.81265
+    },
+    "learned": {
+      "tput": 1.4407274999998738,
+      "bler": 0.23755,
+      "mean_mcs": 4.70345
+    }
+  }
+}

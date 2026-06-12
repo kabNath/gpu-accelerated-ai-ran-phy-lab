@@ -10,8 +10,9 @@ A compact, honest wireless-PHY research stack for AI-RAN / 6G work:
   correct against a CPU reference (~1e-4 relative error).
 - **A 5G link-level BLER simulator** (NVIDIA Sionna): OFDM + 5G LDPC over a
   3GPP TR38.901 TDL channel, swept over MCS × SNR.
-- **Link adaptation** (OLLA baseline + a PPO research scaffold) that consumes
-  the **measured Sionna BLER curves** instead of a hand-tuned analytic model.
+- **Link adaptation** on the measured BLER curves: OLLA baseline, a model-based
+  greedy, and a **model-free learned policy** that uses only ACK/NACK feedback
+  (a deep-RL PPO agent is included as a scaffold for the stateful extension).
 
 The goal isn't to replace a production 5G NR stack — it's to show end-to-end
 engineering judgment: real GPU kernels, a verifiable CPU ground truth, a
@@ -88,25 +89,46 @@ code blocks.
 
 ---
 
-## 3. Link adaptation driven by the Sionna curves
+## 3. Link adaptation on the measured BLER curves
 
 `airan_phy_lab/bler_table.py` loads the swept curves and exposes
-`bler(snr_db, mcs)` — a drop-in for the old `synthetic_bler` — plus
-`best_mcs(snr_db, target_bler)`. The OLLA controller and the PPO scaffold use
-this table, so link adaptation runs against **measured 5G-link BLER**. If the
-curves file is absent, the table transparently falls back to the analytic model
+`bler(snr_db, mcs)` plus `best_mcs(snr_db, target_bler)`, with a transparent
+fallback to the analytic model when the curves file is absent
 (`load_or_synthetic(...).source` reports `"sionna"` vs `"synthetic"`).
 
-> **Status:** OLLA is the working industrial baseline. A *reproducible*
-> PPO-vs-OLLA-vs-greedy comparison under delayed/noisy CQI (with throughput
-> plots) is the next roadmap item — see [`ROADMAP.md`](ROADMAP.md). It is staged
-> deliberately because a trustworthy RL result needs tuning on the real curves,
-> not a quick pass.
+`experiments/la_compare.py` compares four MCS-selection policies on a
+non-stationary SNR trace with **delayed (+3 slots) and noisy (2 dB) CQI** — the
+regime where adaptation matters. `random`, `greedy` and `olla` use the BLER
+curves as a model; the **learned** policy is a model-free contextual bandit that
+sees only ACK/NACK feedback, never the curves.
+
+![Link adaptation under delayed / noisy CQI](results/figures/la_throughput.png)
+
+| policy | throughput (bits/sym) | achieved BLER |
+|---|---:|---:|
+| Random | 0.75 | 38.8% |
+| Greedy (model) | 1.56 | 31.4% |
+| OLLA (tuned) | 1.52 | 27.7% |
+| **Learned (model-free)** | 1.44 | **23.8%** |
+
+The model-free agent recovers **~93%** of the model-based greedy's throughput
+and **~95%** of the tuned OLLA's, **while achieving the lowest block-error rate
+(23.8%)** — using only ACK/NACK feedback, never the channel model. Greedy wins
+raw throughput by trusting the (noisy, delayed) CQI most aggressively; the
+learned policy independently settles on a more conservative, more reliable
+operating point. Under HARQ, where each retransmission costs a slot (not modelled
+here), that reliability gap would partly close the throughput difference.
 
 ```bash
-python -c "from airan_phy_lab.bler_table import load_or_synthetic as l; print(l().source)"
-python benchmarks/train_ppo_demo.py
+python experiments/la_compare.py     # writes results/la_results.json + the figure above
 ```
+
+**Honest scope:** a memoryless/lightly-contextual policy cannot dramatically beat
+a model-based controller sharing the same observation — so this is framed as
+*matching* tuned/industrial baselines from feedback alone, **not** "RL beats
+OLLA". Larger gains need temporal structure (HARQ value, fading prediction); the
+stateful PPO agent in `airan_phy_lab/ppo_link_adaptation.py` is the scaffold for
+that direction — see [`ROADMAP.md`](ROADMAP.md).
 
 ---
 
@@ -117,10 +139,11 @@ airan_phy_lab/
   ofdm.py, modulation.py, channel.py, estimators.py   # classical PHY + LS/MMSE
   cuda/mmse_kernels.py                                 # CuPy RawKernels (real PHY work)
   sionna_link.py                                       # 5G TDL OFDM + LDPC BLER link
-  bler_table.py                                        # Sionna curves -> OLLA/PPO bridge
+  bler_table.py                                        # Sionna curves -> OLLA/bandit/PPO bridge
   link_adaptation.py, ppo_link_adaptation.py           # OLLA + PPO
 csrc/mmse_channel_est.cu                               # standalone CUDA C++ (cuSolver/cuBLAS)
 benchmarks/                                            # CPU-vs-GPU, Sionna sweep, figures
+experiments/la_compare.py                              # OLLA/greedy/random/learned comparison
 results/                                               # measured benchmarks, BLER curves, figures
 docs/NVIDIA_REVIEW.md                                  # design choices + verification + limits
 tests/                                                 # CPU + GPU correctness (GPU self-skips)
@@ -138,8 +161,9 @@ tests/                                                 # CPU + GPU correctness (
 ## Limitations
 
 SISO link, single LDPC codeword (no code-block segmentation), TDL (not
-ray-traced) channel, and a simplified MCS table. These are the natural next
-extensions, not hidden assumptions — see [`ROADMAP.md`](ROADMAP.md).
+ray-traced) channel, and a simplified MCS table. Link-adaptation results assume
+no HARQ retransmission combining. These are natural next extensions, not hidden
+assumptions — see [`ROADMAP.md`](ROADMAP.md).
 
 ## License
 
