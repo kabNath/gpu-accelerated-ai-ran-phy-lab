@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+dist/
+build/
+*.egg-info/
+results/*.qdrep
+results/*.sqlite
+results/*.nsys-rep
+results/*.ncu-rep

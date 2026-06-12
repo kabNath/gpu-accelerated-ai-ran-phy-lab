@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "airan-phy-lab"
+version = "0.1.0"
+description = "GPU-accelerated AI-RAN PHY lab: OFDM, MMSE/LS estimation, OLLA/PPO, CUDA kernel demo"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "Your Name"}]
+license = {text = "MIT"}
+dependencies = ["numpy>=1.24", "scipy>=1.10", "matplotlib>=3.7", "pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["airan_phy_lab*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
