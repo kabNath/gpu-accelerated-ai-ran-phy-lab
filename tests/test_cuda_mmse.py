@@ -21,7 +21,8 @@ def test_gpu_mmse_matches_cpu():
         assert rel < 1e-3, f"n={n}: GPU vs CPU rel err {rel:.2e}"
 
 
-@pytest.mark.skipif(not os.path.exists(CUDA_BIN), reason="csrc/mmse_est not built")
+@pytest.mark.skipif(not (cupy_available() and os.path.exists(CUDA_BIN)),
+                    reason="GPU or csrc/mmse_est not available")
 def test_cuda_binary_matches_cpu(tmp_path):
     n, B = 64, 8
     rng = np.random.default_rng(7)
