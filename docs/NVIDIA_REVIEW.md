@@ -46,8 +46,8 @@ it is a demonstration of end-to-end engineering judgment.
 - 256QAM is capped at 8448 info bits (5G LDPC max) rather than segmented.
 - Benchmarks are on an RTX 4090; A100/H100 numbers are *expected* to scale, not
   measured here.
-- PPO is a scaffold consuming the BLER curves; a trained, baseline-compared
-  result is on the roadmap.
+- The committed link-adaptation result uses a model-free contextual bandit; the stateful PPO agent
+  (`ppo_link_adaptation.py`) is the next extension on the roadmap.
 - Nsight Compute live counters require enabling GPU performance counters; the
   kernel-level profiling methodology is documented in the companion repo.
 
