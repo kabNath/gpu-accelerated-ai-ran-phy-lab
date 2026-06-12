@@ -112,14 +112,6 @@ H_MMSE = R_HH (R_HH + sigma^2 I)^(-1) H_LS
 
 This repo demonstrates practical OFDM PHY implementation, classical estimator baselines, GPU acceleration awareness, AI-RAN link adaptation framing, clean Python engineering, CUDA kernel literacy, and reproducible benchmarking mindset.
 
-Best target roles:
-
-- NVIDIA AI-RAN Research Engineer
-- NVIDIA Wireless AI Research Engineer
-- NVIDIA Developer Technology Engineer, Telecom
-- NVIDIA GPU Software Engineer, entry/research-oriented
-- Foxconn edge AI / wireless systems roles
-- Quant/AI systems roles where control loops and risk-aware decisions matter
 
 ## Limitations
 
